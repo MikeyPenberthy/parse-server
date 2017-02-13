@@ -137,3 +137,656 @@ function pairInvitesToUser(user) {
 	});
 	return promise;
 }
+
+Parse.Cloud.define("SyncContacts", function(request, response) {
+	Parse.Cloud.useMasterKey();
+	var phones = request.params.phones;
+	var query = new Parse.Query(Parse.User);
+	query.containedIn("username", phones);
+	query.find().then(function(users) {
+		var data = [];
+		_.each(users, function(user) {
+			data.push({
+				id : user.id,
+				displayName : user.get("displayName"),
+				phone : user.get("username")
+			});
+		});
+		response.success(data);
+	}, function(err) {
+		response.error(err.message);
+	});
+});
+
+Parse.Cloud.define("CreateGroup", function(request, response) {
+	var cUser = request.user;
+	if (!cUser) {
+		return response.error("You must be logged in to create a group.");
+	}
+	else if (cUser.get("verified") !== true) {
+		return response.error("You must verify your account before creating a group.");
+	}
+	else if (!cUser.get("displayName") || cUser.get("displayName").length === 0) {
+		return response.error("You must set your name before creating groups.");
+	}
+
+	var name = request.params.name || "" + cUser.get("displayName") + "'s Group";
+	Parse.Cloud.useMasterKey();
+
+	var cMember = null;
+	var group = new PFGroup();
+	group.set("name", name);
+	group.set("createdBy", cUser.id);
+	group.set("groupPin", generateGroupPin());
+
+	var groupACL = new Parse.ACL(cUser);
+	groupACL.setPublicReadAccess(false);
+	groupACL.setPublicWriteAccess(false);
+	group.setACL(groupACL);
+
+	var responseData = null;
+	group.save().then(function(sGroup) {
+		group = sGroup;
+		var member = new PFGroupMember();
+		member.set("user", cUser);
+		member.set("status", "active");
+		member.set("group", group);
+		member.set("designatedDriver", false);
+		member.set("phone", cUser.get("username"));
+		return member.save();
+	}).then(function(sMember) {
+		cMember = sMember;
+		var invites = request.params.invites || [];
+		return sendGroupInvites(request.user, group, invites, true);
+	}).then(function(invitedMembers) {
+		var data = {
+			"id" : group.id,
+			"name" : group.get("name"),
+			"groupPin" : group.get("pin"),
+			"createdBy" : group.get("createdBy"),
+			"updatedAt" : group.updatedAt,
+			"createdAt" : group.createdAt,
+		};
+		var mData = [mergeMember(cMember, true)];
+		_.each(group.get("members"), function(member) {
+			mData.push(mergeMember(member, false));
+		});
+		data.members = mData;
+
+		if (invited.length > 0) {
+			request.user.increment("invitesSent", invited.length);
+			request.user.save().always(function() {
+				response.success(data);
+			});
+		}
+		else {
+			return Parse.Promise.as();
+		}
+		response.success(data);
+	}, function(err) {
+		console.log(err.message);
+		response.error("An error occured creating your group.");
+	});
+});
+
+function generateGroupPin() {
+	var pin = "";
+    var possible = "0123456789";
+    for( var i=0; i < 10; i++ ){
+        pin += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return pin;
+}
+
+Parse.Cloud.beforeSave("Group", function(request, response) {
+	var group = request.object;
+	if (group.isNew()) {
+
+	}
+	else {
+
+	}
+	response.success();
+});
+
+Parse.Cloud.beforeDelete("Group", function(request, response) {
+	if (!request.master) {
+		return response.error("Cannot delete groups");
+	}
+	Parse.Cloud.useMasterKey();
+	var group = request.object;
+	var query = new Parse.Query("GroupMember");
+	query.equalTo("group", group);
+	query.find().then(function(members) {
+		if (members.length === 0) {
+			return Parse.Promise.as();
+		}
+		return Parse.Object.destroyAll(members);
+	}).then(function() {
+		response.success();
+	}, function(err) {
+		response.error(err);
+	});
+});
+
+
+
+
+Parse.Cloud.define("GetGroups", function(request, response) {
+
+	if (!request.user) {
+		return response.error("You must be logged in to fetch groups");
+	}
+
+	Parse.Cloud.useMasterKey();
+	var groups = {};
+
+	var cQuery = new Parse.Query(PFGroupMember);
+	cQuery.equalTo("user", request.user);
+	cQuery.include("group");
+	cQuery.find().then(function(cMembers) {
+		if (cMembers.length === 0) {
+			return Parse.Promise.as([]);
+		}
+		var gList = [];
+		_.each(cMembers, function(member) {
+			var g = member.get("group");
+			member.set("user", request.user);
+			var gData = {
+				"id" : g.id,
+				"name" : g.get("name"),
+				"groupPin" : g.get("pin"),
+				"createdBy" : g.get("createdBy"),
+				"updatedAt" : g.updatedAt,
+				"createdAt" : g.createdAt,
+				"members" : [mergeMember(member, true)],
+				"lastMessage" : g.get("lastMessage")
+			};
+			groups[g.id] = gData;
+			if (member.get("status") == "active") {
+				gList.push(g.toPointer());
+		 	}
+		});
+
+		var mQuery = new Parse.Query(PFGroupMember);
+		mQuery.containedIn("group", gList);
+		mQuery.include("user");
+		mQuery.notEqualTo("user", request.user);
+		mQuery.notEqualTo("status", "invite");
+		return mQuery.find();
+	}).then(function(members) {
+		if (members.length > 0) {
+			_.each(members, function(member) {
+				var g = groups[member.get("group").id];
+				g.members.push(mergeMember(member));
+			});
+		}
+		response.success(_.values(groups));
+	}, function(err) {
+		response.error(err);
+	});
+});
+
+
+Parse.Cloud.define("FetchGroup", function(request, response) {
+ 	if (!request.user) {
+ 		return response.error("You must be logged in to fetch a group");
+ 	}
+ 	else if (!request.params.groupId) {
+ 		return response.error("You must supply the id of the group to fetch");
+ 	}
+ 	getGroup(request.user, request.params.groupId).then(function(group) {
+ 		response.success(group);
+ 	}, function(err) {
+ 		response.error(err);
+ 	});
+});
+
+
+function getGroup(currentUser, groupId) {
+	Parse.Cloud.useMasterKey();
+	var promise = new Parse.Promise();
+
+	var gPointer = new PFGroup();
+	gPointer.id = groupId;
+
+	var group = null;
+	var cQuery = new Parse.Query(PFGroupMember);
+	cQuery.include("group");
+	cQuery.equalTo("group", gPointer);
+	cQuery.equalTo("user", currentUser);
+	cQuery.first().then(function(member) {
+		if (member == null || member.get("user").id != currentUser.id) {
+			return Parse.Promise.error("You do not have permission to view this group");
+		}
+		var g = member.get("group");
+		member.set("user", currentUser);
+		group = {
+			"id" : g.id,
+			"name" : g.get("name"),
+			"groupPin" : g.get("pin"),
+			"createdBy" : g.get("createdBy"),
+			"updatedAt" : g.updatedAt,
+			"createdAt" : g.createdAt,
+			"members" : [mergeMember(member, true)],
+			"lastMessage" : g.get("lastMessage")
+		};
+
+		if (member.get("status") != "active") {
+			return Parse.Promise.as([]);
+		}
+		var mQuery = new Parse.Query(PFGroupMember);
+		mQuery.equalTo("group", g);
+		mQuery.include("user");
+		mQuery.notEqualTo("user", currentUser);
+		mQuery.notEqualTo("status", "invite");
+		return mQuery.find();
+	}).then(function(members) {
+		if (members.length > 0) {
+			_.each(members, function(member) {
+				group.members.push(mergeMember(member));
+			});
+		}
+		promise.resolve(group);
+	}, function(err) {
+		promise.reject(err.message || err);
+	});
+
+	return promise;
+}
+
+function mergeMember(member, isCurrentUser) {
+	var user = member.get("user");
+	var data = {
+		"id" : member.id,
+		"designatedDriver" : member.get("designatedDriver"),
+		"status" : member.get("status"),
+		"groupId" : member.get("group").id
+	};
+	if (isCurrentUser) {
+		data.notifications = member.get("notifications");
+		data.sharePhoneUntil = member.get("sharePhoneUntil");
+		data.shareBacUntil = member.get("shareBacUntil");
+		data.shareDrinksUntil = member.get("shareDrinksUntil");
+	}
+
+	data.displayName = user.get("displayName");
+	data.userId = user.id;
+	data.gender = user.get("gender");
+	// Only include private data if the member is active
+	// May add the ability for the user to manually dictate this (i.e. share for 24hrs)
+	if (member.get("status") == "active") {
+		var shareBAC = user.get("shareBacUntil");
+		var sharePhone = user.get("sharePhoneUntil");
+		var now = new Date();
+		if (!shareBAC || shareBAC > now) {
+			data.lastBAC = user.get("currentBAC");
+			data.BACUpdatedAt = user.get("BACUpdatedAt");
+			data.goalBAC = user.get("goalBAC");
+		}
+		if (!sharePhone || sharePhone > now) {
+			data.phone = user.get("username");
+		}
+		data.weight = user.get("weight");
+	}
+	return data;
+}
+
+Parse.Cloud.beforeSave("GroupMember", function(request, response) {
+
+	var member = request.object;
+	var user = member.get("user");
+
+	// Make sure we have required fields
+	if (!user && !member.get("phone")) {
+		return response.error("Group member must have a user or phone");
+	}
+	else if (!member.get("group")) {
+		return response.error("Group member must have a user and group");
+	}
+
+	// Set some defaults
+	if (!_.isBoolean(member.get("designatedDriver"))) {
+		member.set("designatedDriver", false);
+	}
+	if (!_.isArray(member.get("notifications"))) {
+		member.set("notifications", ["message", "member_joined", "member_drink"]);
+	}
+	member.set("groupId", member.get("group").id);
+	// Make sure we have an ACL
+	if (!member.getACL()) {
+		var acl = new Parse.ACL();
+		acl.setPublicWriteAccess(false);
+		acl.setPublicReadAccess(false);
+		member.setACL(acl);
+	}
+	if (user) {
+		member.getACL().setWriteAccess(user.id, true);
+		member.getACL().setReadAccess(user.id, true);
+	}
+	else {
+		member.set("status", "invite");
+	}
+
+	// Only the user should have direct write access
+	if (!member.isNew()) {
+		// Make sure static fields aren't changed
+		if (member.dirty("phone") || member.dirty("group")) {
+			return response.error("Cannot modify user or group for a group member.");
+		}
+		else if (member.dirty("user") && (!user || !request.master)) {
+			return response.error("Cannot remove the user from a group member");
+		}
+	}
+
+	response.success();
+});
+
+Parse.Cloud.afterSave("GroupMember", function(request, response) {
+
+	var member = request.object;
+	if (member.get("status") != "invite") { return; }
+	var user = member.get("user");
+
+	if (request.user && user.id == request.user.id) { return; }
+
+	Parse.Cloud.useMasterKey();
+	var q = new Parse.Query(PFGroupMember);
+	q.include("group");
+	q.include("invitedBy");
+	q.get(member.id).then(function(fMember) {
+		var sender = fMember.get("invitedBy");
+		var group = fMember.get("group");
+		var senderName = sender.get("displayName")
+		var groupName = group.get("name");
+
+		if (user) {
+			var notification = senderName + " invited you to join the group " + group.get("name");
+			var installQuery = new Parse.Query(Parse.Installation);
+			installQuery.equalTo("user", user);
+			Parse.Push.send({
+				where: installQuery,
+				data: {
+					alert: notification,
+					badge: "Increment",
+					title: group.get("name"),
+					group: group.id,
+					"content-available" : 1,
+					action: "group_invite"
+				}
+			});
+		}
+		else {
+			var msg = senderName + " invited you to join the group " + group.get("name") +" on Watch Your BAC.\n";
+			msg += "Already have the app? Just verify you account.\n";
+			msg += "iOS: http://appstore.com/watchyourbac";
+			return sendInviteSMS(1, member.get("phone"), msg);
+		}
+	}, function(err) {
+		console.log("Error creating invite notification: " + err);
+	});
+
+});
+
+function sendInviteSMS(countryCode, phoneNumber, message) {
+	var prefix = "+" + countryCode;
+	var promise = new Parse.Promise();
+	twilio.sendSms({
+		to: prefix + phoneNumber.replace(/\D/g, ''),
+		from: twilioPhoneNumber.replace(/\D/g, ''),
+		body: message
+	}, function(err, responseData) {
+		if (err) {
+			console.log(err);
+			promise.reject(err.message);
+		} else {
+			promise.resolve();
+		}
+	});
+	return promise;
+}
+
+
+
+
+// DataManager ONLY
+Parse.Cloud.beforeDelete("GroupMember", function(request, response) {
+	if (!request.master) {
+		return response.error("Cannot delete group members");
+	}
+	Parse.Cloud.useMasterKey();
+
+	var member = request.object;
+	var query = new Parse.Query("GroupMessage");
+	query.equalTo("member", member);
+	query.limit(1000);
+	query.find().then(function(messages) {
+		if (messages.length === 0) {
+			return Parse.Promise.as();
+		}
+		return Parse.Object.destroyAll(messages);
+	}).then(function() {
+		response.success();
+	}, function(err) {
+		response.error(err);
+	});
+});
+
+
+Parse.Cloud.define("SendGroupInvites", function(request, response) {
+	var groupID = request.params.groupId;
+	var invites = request.params.invites || [];
+
+	if (!request.user) {
+		return request.error("You must be logged in to invite people to groups");
+	}
+	else if (invites.length === 0) {
+		return request.error("You must give some people to invite");
+	}
+	else if (!groupID) {
+		return request.error("You must provide a group ID.");
+	}
+
+	var gPointer = new PFGroup();
+	gPointer.id = groupID;
+
+	var authQuery = new Parse.Query(PFGroupMember);
+	authQuery.equalTo("user", request.user);
+	authQuery.equalTo("group", gPointer);
+	authQuery.first({useMasterKey : true}).then(function(cMember) {
+		if (!cMember) {
+			return Parse.Promise.error("You are not allowed to send invites for this group");
+		}
+		return sendGroupInvites(request.user, cMember.get("group"), invites, false);
+	}).then(function(invited) {
+		if (invited.length > 0) {
+			request.user.increment("invitesSent", invited.length);
+			request.user.save().always(function() {
+				response.success("Sent " + invited.length + " invites.");
+			});
+		}
+		else {
+			response.success("No new members to invite");
+		}
+	}, function(err) {
+		response.error(err.message || err);
+	});
+});
+
+
+Parse.Cloud.define("AcceptInvite", function(request, response) {
+	Parse.Cloud.useMasterKey();
+
+	var cUser = request.user;
+	var memberID = request.params.memberId;
+	if (!cUser) {
+ 		return response.error("You must be logged in to fetch a group");
+ 	}
+ 	else if (!memberID) {
+ 		return response.error("You must supply the id of the member to accept");
+ 	}
+
+	var group = null;
+	var originalGroup = null;
+	var cQuery = new Parse.Query(PFGroupMember);
+	cQuery.include("group");
+	cQuery.get(memberID).then(function(member) {
+		if (member.get("user").id != cUser.id) {
+			return Parse.Promise.error("You do not have permission to accept this invite");
+		}
+		var g = member.get("group");
+		originalGroup = g
+		group = {
+			"id" : g.id,
+			"name" : g.get("name"),
+			"groupPin" : g.get("pin"),
+			"createdBy" : g.get("createdBy"),
+			"updatedAt" : g.updatedAt,
+			"createdAt" : g.createdAt,
+			"lastMessage" : g.get("lastMessage")
+		};
+
+		member.set("status", "active");
+		return member.save();
+	}).then(function(sMember) {
+		sMember.set("user", cUser);
+		group.members = [mergeMember(sMember, false)];
+
+		var mQuery = new Parse.Query(PFGroupMember);
+		mQuery.equalTo("group", sMember.get("group"));
+		mQuery.include("user");
+		mQuery.notEqualTo("user", cUser);
+		mQuery.notEqualTo("status", "invite");
+		return mQuery.find();
+	}).then(function(members) {
+		if (members.length > 0) {
+			_.each(members, function(member) {
+				group.members.push(mergeMember(member));
+			});
+		}
+		request.user.increment("invitedAccepted");
+		request.user.save().always(function() {
+			var memberQuery = new Parse.Query(PFGroupMember);
+			memberQuery.equalTo("group", originalGroup);
+			memberQuery.equalTo("status", "active");
+			memberQuery.exists("user");
+			memberQuery.notEqualTo("user", cUser);
+			memberQuery.equalTo("notifications", "member_joined");
+			var installQuery = new Parse.Query(Parse.Installation);
+			installQuery.matchesKeyInQuery("user", "user", memberQuery);
+			Parse.Push.send({
+				where: installQuery,
+				data: {
+					alert: cUser.get("displayName") + " joined the group " + group.name,
+					title: cUser.get("displayName"),
+					group: group.id,
+					"content-available" : 1,
+					action: "member_joined"
+				}
+			});
+		}).always(function() {
+			response.success(group);
+		});
+	}, function(err) {
+		response.error(err.message || err);
+	});
+});
+
+function sendGroupInvites(sender, group, invites, groupIsNew) {
+
+	var groupMembers = {};
+	var phoneNumbers = [];
+	var validPhoneLength = 10; // Will need to be dynamic for international support
+
+	// Create  starting list of new members
+	_.each(invites, function(invite) {
+		var phone = invite.phone;
+		if (phone && phone.length == validPhoneLength) {
+			var nMember = new PFGroupMember();
+			nMember.set("group", group);
+			nMember.set("phone", phone);
+			nMember.set("status", "invite");
+			nMember.set("designatedDriver", false);
+			nMember.set("invitedBy", sender);
+			groupMembers[phone] = nMember;
+			phoneNumbers.push(phone);
+			return true;
+		}
+		return false;
+	});
+
+	// No valid invites provided
+	if (phoneNumbers.length === 0) {
+		return Parse.Promise.as([]);
+	}
+
+	// If the group is new we can skip duplicate validation
+	// Duplicate new invites, were already hanled by creating the object
+	var startPromise = null;
+	if (groupIsNew) {
+		startPromise = Parse.Promise.as([]);
+	}
+	else {
+		var existingQuery = new Parse.Query(PFGroupMember);
+		existingQuery.containedIn("phone", phoneNumbers);
+		existingQuery.equalTo("group", group);
+		existingQuery.limit = 1000;
+		startPromise = existingQuery.find({useMasterKey: true});
+	}
+
+	var funcPromise = new Parse.Promise();
+	startPromise.then(function(exisingMembers) {
+		// Clean out existing members
+		_.each(exisingMembers, function(eMember) {
+			var p = eMember.get("phone");
+			if (eMember.get("status") == "active" || eMember.get("status") == "invite") {
+				delete groupMembers[phone];
+			}
+			// The existing member was removed or left the group. Re-invite
+			// Set the id so it is an update not an insert
+			else {
+				eMember.set("status", "invite");
+				groupMembers[phone].id = eMember;
+			}
+		});
+		// No members left to save -> the reject(true) is handled below
+		if (Object.keys(groupMembers).length === 0) {
+			return Parse.Promise.error(true);
+		}
+
+		// Update the phone numbers array
+		phoneNumbers = _.map(groupMembers, function(m) {
+			return m.get("phone");
+		});
+		var userQuery = new Parse.Query(Parse.User);
+		userQuery.containedIn("username", phoneNumbers);
+		return userQuery.find({useMasterKey: true});
+	}).then(function(users) {
+		// Match users to new members
+		console.log("Found users: " + users.length);
+		console.log(users);
+		console.log(JSON.stringify(groupMembers));
+		_.each(users, function(user) {
+			var phone = user.get("username");
+			console.log("Mathcing user: " + phone);
+			var gMember = groupMembers[phone];
+			if (gMember) { // Should never happen, but just to be safe
+				console.log("Setting user for member invite");
+				gMember.set("user", user);
+			}
+		});
+
+		var membersToSave = _.values(groupMembers);
+		return Parse.Object.saveAll(membersToSave, { useMasterKey: true });
+	}).then(function(savedMembers) {
+		funcPromise.resolve(savedMembers);
+	}, function(err) {
+		if (err === true) {
+			funcPromise.resolve([]);
+		}
+		else {
+			funcPromise.reject(err);
+		}
+	});
+	return funcPromise;
+}
