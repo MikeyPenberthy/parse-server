@@ -790,3 +790,449 @@ function sendGroupInvites(sender, group, invites, groupIsNew) {
 	});
 	return funcPromise;
 }
+/********************************************************************************
+* Group Messages
+/********************************************************************************/
+
+Parse.Cloud.beforeSave("GroupMessage", function(request, response) {
+	var msg = request.object;
+	if (!msg.get("message")) {
+		return response.error("Group message must have a message");
+	}
+	else if (!msg.get("member")) {
+		return response.error("Group message must have a member");
+	}
+	else if (!msg.get("type")) {
+		return response.error("Group message must have a type");
+	}
+	response.success();
+});
+
+Parse.Cloud.afterSave("GroupMessage", function(request, response) {
+	var message = request.object;
+	var groupId = message.get("groupId");
+	if (message.existed()) { return; }
+	if (!groupId) { return; }
+	if (message.get("type") != "message") { return; }
+
+	Parse.Cloud.useMasterKey();
+
+	var gPointer = new PFGroup();
+	gPointer.id = groupId;
+
+	// If this is a message update the group with it.
+	console.log("Message type: " + message.get("type"));
+	if (message.get("type") == "message") {
+		gPointer.set("lastMessage", {
+			"sentAt" : message.createdAt,
+			"message" : message.get("message")
+		});
+		gPointer.save();
+	}
+
+	// Send notifications
+	var q = new Parse.Query(PFGroupMember);
+	q.include("group");
+	q.include("user");
+	q.get(message.get("member").id).then(function(member) {
+		var sender = member.get("user");
+		var group = member.get("group");
+
+		var msgType = message.get("type");
+
+		var username = sender.get("displayName");
+		var msg = message.get("message");
+
+		var notification = "";
+		if (msgType == "message") {
+			notification = username +" in " + group.get("name") + ": " + msg;
+		}
+
+		var memberQuery = new Parse.Query(PFGroupMember);
+		memberQuery.equalTo("notifications", msgType);
+		memberQuery.equalTo("status", "active");
+		memberQuery.exists("user");
+		memberQuery.equalTo("group", group);
+		memberQuery.notEqualTo("user", sender);
+
+		var installQuery = new Parse.Query(Parse.Installation);
+		installQuery.matchesKeyInQuery("user", "user", memberQuery);
+
+		Parse.Push.send({
+			where: installQuery,
+			data: {
+				alert: notification,
+				badge: "Increment",
+				title: username,
+				group: groupId,
+				"content-available" : 1,
+				action: "group_message"
+			}
+		});
+	}, function(err) {
+		console.log("Error creating message notification: " + err);
+	});
+});
+
+Parse.Cloud.define("PostGroupMessage", function(request, response) {
+	Parse.Cloud.useMasterKey();
+	var groupId = request.params.groupId;
+	var content = request.params.message;
+	var msgType = request.params.messageType || "message";
+
+	if (!request.user)  {
+		return response.error("You must be logged in to send group messages");
+	}
+	else if (!groupId) {
+		return response.error("You must supply the id of the group to post in");
+	}
+	else if (!content || content.length === 0) {
+		return response.error("You didn't enter a message");
+	}
+
+	var gPointer = new PFGroup();
+	gPointer.id = groupId;
+
+	var memQuery = new Parse.Query(PFGroupMember);
+	memQuery.equalTo("group", gPointer);
+	memQuery.equalTo("user", request.user);
+	memQuery.equalTo("status", "active");
+	memQuery.first().then(function(member) {
+		if (!member) {
+			return Parse.Promise.error("You are not an active member of this group");
+		}
+		var msg = new PFGroupMessage();
+		msg.set("message", content);
+		msg.set("member", member);
+		msg.set("type", msgType);
+		msg.set("groupId", groupId);
+		return msg.save();
+	}).then(function(message) {
+		message.get("member").set("user", request.user);
+		var res = mergeMessage(message, true);
+		response.success(res);
+	}, function(err) {
+		response.error(err.message || err);
+	});
+});
+
+Parse.Cloud.define("GetGroupMessages", function(request, response) {
+	Parse.Cloud.useMasterKey();
+	var groupId = request.params.groupId;
+
+	if (!request.user)  {
+		return response.error("You must be logged in to get group messages");
+	}
+	else if (!groupId) {
+		return response.error("You must supply a group id you want messages for");
+	}
+
+	var gPointer = new PFGroup();
+	gPointer.id = groupId;
+
+	var memQuery = new Parse.Query(PFGroupMember);
+	memQuery.equalTo("group", gPointer);
+	memQuery.equalTo("user", request.user);
+	memQuery.equalTo("status", "active");
+
+	var msgQuery = new Parse.Query(PFGroupMessage);
+	msgQuery.matchesKeyInQuery("groupId", "groupId", memQuery);
+	msgQuery.include("member.user");
+	msgQuery.find().then(function(messages) {
+		var res = _.map(messages, function(msg) {
+			var user = msg.get("member").get("user");
+			return mergeMessage(msg, user.id == request.user.id);
+		});
+		response.success(res);
+	}, function(err) {
+		response.error(err.message);
+	});
+});
+
+function mergeMessage(message, isCurrentUser) {
+	return {
+		"id" : message.id,
+		"message" : message.get("message"),
+		"sentAt" : message.createdAt,
+		"type" : message.get("type"),
+		"member" : mergeMember(message.get("member"), isCurrentUser)
+	};
+}
+
+
+
+Parse.Cloud.define("PostDrink", function(request, response) {
+	Parse.Cloud.useMasterKey();
+
+	var user = request.user;
+	if (!user) {
+		return response.error("You must be logged in to post drinks");
+	}
+	else if (!user.get("verified")) {
+		return response.error("You must be verify your account to post drinks");
+	}
+
+	var bac = 0;
+	var cBAC = user.get("currentBAC");
+	var lastDrink = user.get("BACUpdatedAt");
+	if (cBAC > 0 && lastDrink !== null) {
+		var now = new Date().getTime();
+		var mSecs = now - lastDrink.getTime();
+
+		var hours = mSecs/1000.0/60.0/60.0;
+		var decAmount = hours * 0.015;
+		bac = cBAC - decAmount;
+		if (bac < 0) {
+			bac = 0;
+		}
+	}
+
+	var passedGoal = false;
+	var goal = user.get("goalBAC") || 0;
+	if (goal > 0) {
+		passedGoal = bac > goal;
+	}
+
+	var query = null;
+
+	var drinkQuery = new Parse.Query(PFGroupMember);
+	drinkQuery.greaterThan("shareDrinksUntil", new Date());
+
+	if (passedGoal) {
+		var bacLimitedQuery = new Parse.Query(PFGroupMember);
+		bacLimitedQuery.greaterThan("shareBacUntil", new Date());
+
+		var bacForeverQuery = new Parse.Query(PFGroupMember);
+		bacForeverQuery.doesNotExist("shareBacUntil");
+
+		var bacQuery = Parse.Query.or(bacLimitedQuery, bacForeverQuery);
+		query = Parse.Query.or(bacQuery, drinkQuery);
+	}
+	else {
+		query = drinkQuery;
+	}
+
+	query.equalTo("status", "active");
+	query.equalTo("user", request.user);
+	query.find().then(function(members) {
+
+		// Arrays of the groups to share with
+		var shareDrinkWith = [];
+		var shareGoalPassWith = [];
+		var now = new Date();
+		_.each(members, function(member) {
+			var group = member.get("group");
+			var shareBAC = member.get("shareBacUntil");
+			var shareDrinks = member.get("shareDrinksUntil");
+
+			if (passedGoal == true) {
+				if (!shareBAC || shareBAC > now) {
+					shareGoalPassWith.push(group);
+				}
+			}
+			if (shareDrinks && shareDrinks > now) {
+				shareDrinkWith.push(group);
+			}
+		});
+
+		return Parse.Promise.when([
+			shareDrink(user, shareDrinkWith, request.params.drinkName),
+			shareGoalPass(user, shareGoalPassWith)
+		]);
+
+	}).then(function() {
+		response.success("Shared drink");
+	}, function(err) {
+		response.error(err.message);
+	});
+});
+
+
+function shareGoalPass(user, groups) {
+
+	console.log("Sharing goal pass with " + groups.length + " groups.");
+	if (groups.length === 0) {
+		return Parse.Promise.as();
+	}
+
+	var message = user.get("displayName") + " passed their goal!";
+
+	var memQuery = new Parse.Query(PFGroupMember);
+	memQuery.containedIn("group", groups);
+	memQuery.equalTo("notifications", "member_passed_goal");
+	memQuery.equalTo("status", "active");
+
+	var iQuery = new Parse.Query(Parse.Installation);
+	iQuery.matchesKeyInQuery("user", "user", memQuery);
+	iQuery.notEqualTo("user", user);
+
+	return Parse.Push.send({
+			where: iQuery,
+			data: {
+				alert: message
+			}
+		});
+}
+
+function shareDrink(user, groups, drinkName) {
+
+	console.log("Sharing drink with " + groups.length + " groups.");
+	if (groups.length === 0) {
+		return Parse.Promise.as();
+	}
+
+	var dName = drinkName || "drink";
+	var message = user.get("displayName") + " had a " + dName;
+
+	var memQuery = new Parse.Query(PFGroupMember);
+	memQuery.containedIn("group", groups);
+	memQuery.equalTo("notifications", "member_drink");
+	memQuery.equalTo("status", "active");
+
+	var iQuery = new Parse.Query(Parse.Installation);
+	iQuery.matchesKeyInQuery("user", "user", memQuery);
+	iQuery.notEqualTo("user", user);
+
+	return Parse.Push.send({
+			where: iQuery,
+			data: {
+				alert: message
+			}
+		});
+}
+
+
+
+
+Parse.Cloud.define("joinGroup", function(request, response) {
+	if (!request.user) {
+		response.error("You must be logged in to join a group.");
+		return;
+	}
+
+	Parse.Cloud.useMasterKey();
+	var q = new Parse.Query(PFGroup);
+	q.equalTo("groupPin", request.params.code);
+	q.first().then(function(group) {
+		if (group) {
+			console.log(result);
+			var newMember = new PFGroupMember();
+			newMember.set('user', request.user);
+			newMember.set('group', group);
+			newMember.set('status', 'active');
+			newMember.set('notifications', true);
+			newMember.save().then(function(sMember) {
+
+				var mQuery = new Parse.Query(PFGroupMember);
+				mQuery.equalTo("group", group);
+				mQuery.include("user");
+				return mQuery.find({useMasterKey: true});
+			}).then(function(members) {
+				var merged = _.map(members, function(m) {
+					return mergeMember(m);
+				});
+				group.set("members", merged);
+				response.success(group);
+			}, function(err) {
+				console.log(err);
+				response.error(err.message);
+			});
+		}
+		else {
+			response.error("Code did not match the event.");
+		}
+	}, function(error) {
+		response.error("There was a problem verifing this passcode");
+	});
+});
+
+
+Parse.Cloud.define("MigrateRecipes", function(request, response) {
+
+	var PFCocktail = Parse.Object.extend("Recipes");
+	var PFMocktail = Parse.Object.extend("Mocktails");
+	var PFRecipe = Parse.Object.extend("Recipe");
+
+	var query = new Parse.Query(PFMocktail);
+	query.find().then(function(mocktails) {
+
+		var recipes = [];
+		_.each(mocktails, function(m) {
+			var recipe = new PFRecipe();
+			recipe.set("name", m.get("recipeName"));
+			recipe.set("ingredients", m.get("ingredients"));
+			recipe.set("type", "mocktail");
+			recipes.push(recipe);
+		});
+
+		return Parse.Object.saveAll(recipes);
+	}).then(function() {
+		return new Parse.Query(PFCocktail).find();
+	}).then(function(cocktails) {
+
+		var recipes = [];
+		_.each(cocktails, function(c) {
+			var recipe = new PFRecipe();
+			recipe.set("name", c.get("recipeName"));
+			recipe.set("ingredients", c.get("ingredients"));
+			recipe.set("type", "cocktail");
+			recipes.push(recipe);
+		});
+		return Parse.Object.saveAll(recipes);
+	}).then(function() {
+		response.success("Combined recipes!");
+	}, function(err) {
+		response.error(err.message);
+	});
+});
+
+
+Parse.Cloud.job("MigrateAchievement", function(request, status) {
+	Parse.Cloud.useMasterKey();
+
+	var query = Parse.Query(Parse.User);
+	query.exists("achievementTracker");
+	query.include("achievementTracker");
+	query.each(function(user) {
+		var tracker = user.get("achievementTracker");
+		if (!tracker) {
+			return Parse.Promise.as();
+		}
+
+		if (tracker.get("appRunTime")) {
+			user.increment("appRunTime", tracker.get("appRunTime"));
+		}
+		if (tracker.get("appRunTimeLevel")) {
+			user.increment("appRunTimeLevel", tracker.get("appRunTimeLevel"));
+		}
+		if (tracker.get("underLimit")) {
+			user.increment("stayedGreen", tracker.get("underLimit"));
+		}
+		return user.save();
+	}).then(function() {
+		status.success("Migrated user achievements");
+	}, function(err) {
+		status.error("Error migrating achievements " + err.message);
+	});
+});
+
+
+Parse.Cloud.job("AnalyzeGroups", function(request, response) {
+
+	var q = new Parse.Query(PFGroup);
+	q.find().then(function(res) {
+
+		console.log("Found " + res.length + " Groups");
+		var count = 0;
+		for (var i = 0; i < res.length-1; i++) {
+			var g = res[i];
+			if (g.get("members").length > 1){
+				count++;
+			}
+		}
+
+		response.success("There are " + count + " groups with more than 1 person");
+	}, function(err) {
+		response.error(err.message);
+	});
+});
