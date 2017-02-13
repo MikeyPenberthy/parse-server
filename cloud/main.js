@@ -55,3 +55,85 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 		response.error(err);
 	});
 });
+
+Parse.Cloud.define("login", function(request, response) {
+	Parse.Cloud.useMasterKey();
+
+	var phoneNumber = request.params.phone;
+	var token = request.params.token;
+	if (!phoneNumber || phoneNumber.length != 10) {
+		return response.error("Invalid phone number");
+	}
+	if (!token || token.length === 0) {
+		return response.error("Invalid token");
+	}
+	phoneNumber = phoneNumber.replace(/\D/g, '');
+	token = token.replace(/\D/g, '');
+
+	if (phoneNumber && token) {
+		var user = null;
+		Parse.User.logIn(phoneNumber, token).then(function (loggedInUser) {
+			user = loggedInUser;
+			// If we are verified, just continue along
+			if (user.get("verified") === true) {
+				return Parse.Promise.as();
+			}
+			return pairInvitesToUser(user);
+		}).then(function(members) {
+			// If we aren't verified, just continue again
+			if (user.get("verified") === true) {
+				return Parse.Promise.as();
+			}
+			return user.save({"verified" : true});
+		}).then(function(savedUser) {
+			response.success(user.getSessionToken());
+		}, function (err) {
+			response.error(err);
+		});
+	} else {
+		response.error('Invalid parameters.');
+	}
+});
+
+
+function sendCodeSms(countryCode, phoneNumber, token) {
+	var prefix = "+" + countryCode;
+	var promise = new Parse.Promise();
+	twilio.sendSms({
+		to: prefix + phoneNumber.replace(/\D/g, ''),
+		from: twilioPhoneNumber.replace(/\D/g, ''),
+		body: 'Your login code for Watch Your BAC is ' + token
+	}, function(err, responseData) {
+		if (err) {
+			console.log(err);
+			promise.reject(err.message);
+		} else {
+			promise.resolve();
+		}
+	});
+	return promise;
+}
+
+
+function pairInvitesToUser(user) {
+	Parse.Cloud.useMasterKey();
+	var promise = new Parse.Promise();
+	var query = new Parse.Query(PFGroupMember);
+	query.equalTo("phone", user.get("username"));
+	query.doesNotExist("user");
+	query.limit(1000);
+	query.find().then(function(members) {
+		if (members.length === 0) {
+			return Parse.Promise.as([]);
+		}
+		_.each(members, function(member) {
+			member.set("user", user);
+		});
+		return Parse.Object.saveAll(members);
+	}).then(function(savedMembers) {
+		promise.resolve(savedMembers);
+	}, function(err) {
+		promise.reject(err);
+	});
+	return promise;
+}
