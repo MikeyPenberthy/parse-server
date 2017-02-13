@@ -1,3 +1,15 @@
+var _ = require("underscore");
+
+var PFGroup = Parse.Object.extend("Group");
+var PFGroupMember = Parse.Object.extend("GroupMember");
+var PFGroupMessage = Parse.Object.extend("GroupMessage");
+
+var twilioAccountSid = 'ACce874884df7d6e62cb94f5fd19f74679';
+var twilioAuthToken = '067c86abc36d1c7569761e5175df4b9b';
+var twilioPhoneNumber = '+13237391950';
+
+var twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
+
 
 Parse.Cloud.define('hello', function(req, res) {
   res.success('Hi');
