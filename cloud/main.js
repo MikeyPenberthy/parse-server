@@ -46,8 +46,7 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 					body: 'Your login code for Watch Your BAC is '+ token
 				}, function(err, responseData) {});
 	
-
-	response.success(prefix + phoneNumber);
+	response.success(result);
 });
 });
 
