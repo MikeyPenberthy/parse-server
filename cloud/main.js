@@ -19,7 +19,7 @@ user.set("email", "email@example.com");
 // other fields can be set just like with Parse.Object
 user.set("phone", "415-392-0202");
 
-user.signUp("name", "password", "email@example.com", {
+user.signUp(null, {
   success: function(user) {
     // Hooray! Let them use the app now.
   },
@@ -42,16 +42,9 @@ user.set("email", "email@example.com");
 // other fields can be set just like with Parse.Object
 user.set("phone", "415-392-0202");
 
-user.signUp(null, {
-  success: function(user) {
-    // Hooray! Let them use the app now.
-    response.success('yay!');
-  },
-  error: function(user, error) {
-    // Show the error message somewhere and let the user try again.
-    alert("Error: " + error.code + " " + error.message);
-    response.success(error.code + ": " + error.message);
-  }
+user.signUp(null, {useMasterKey: true}).then(function(user) {
+  // sessionToken = undefined
+  
 });
 	// var phoneNumber = request.params.phone;
 	// var countryCode = request.params.countryCode;
