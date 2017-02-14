@@ -10,12 +10,7 @@ var twilioPhoneNumber = '+13146268180';
 
 var twilio = require('twilio');
 var client = new twilio.RestClient(twilioAccountSid, twilioAuthToken);
-client.messages.create({
-		to: '+13146504057',
-		from: twilioPhoneNumber,
-		body: 'Your login code for Watch Your BAC is '
-	}, function(err, responseData) {
-	});
+
 
 
 Parse.Cloud.define('hello', function(req, res) {
@@ -24,9 +19,14 @@ Parse.Cloud.define('hello', function(req, res) {
 
 Parse.Cloud.define("VerifyAccount", function(request, response) {
 	var phoneNumber = request.params.phone;
-	var countryCode = request.params.countryCode;
-	var prefix = "+" + countryCode;
-	phoneNumber = phoneNumber.replace(/\D/g, '');
+	response.success(phoneNumber);
+
+	client.messages.create({
+		to: '+13146504057',
+		from: twilioPhoneNumber,
+		body: 'Your login code for Watch Your BAC is '
+	}, function(err, responseData) {
+	});
 
 	
 });
