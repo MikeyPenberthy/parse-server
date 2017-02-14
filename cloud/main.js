@@ -18,8 +18,8 @@ user.set("email", "email@example.com");
 
 // other fields can be set just like with Parse.Object
 user.set("phone", "415-392-0202");
-
-user.signUp("name", "password", {}, {
+Parse.initialize(twilioAccountSid, twilioAuthToken);
+Parse.User.signUp("name", "password", {}, {
   success: function(user) {
     // Hooray! Let them use the app now.
   },
