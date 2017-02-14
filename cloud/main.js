@@ -40,7 +40,12 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 		var num2 = Math.floor(Math.random() * (max - min + 1)) + min;
 		var token = num1 + " " + num2;
 		var pass = token.replace(/\D/g, '');
-
+		client.messages.create({
+					to: prefix + phoneNumber,
+					from: twilioPhoneNumber,
+					body: 'Your login code for Watch Your BAC is '+ token
+				}, function(err, responseData) {});
+	
 	
 	response.success(prefix + phoneNumber);
 	if (result) {
@@ -53,7 +58,7 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 					from: twilioPhoneNumber,
 					body: 'Your login code for Watch Your BAC is '+ token
 				}, function(err, responseData) {});
-				
+
 			}).then(function() {
 				response.success();
 			}, function(err) {
