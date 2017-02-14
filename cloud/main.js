@@ -34,20 +34,30 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 	Parse.Cloud.useMasterKey();
 	var query = new Parse.Query(Parse.User);
 	query.equalTo('username', phoneNumber + "");
-	query.first().then(function(result) {
-		var min = 100; var max = 999;
-		var num1 = Math.floor(Math.random() * (max - min + 1)) + min;
-		var num2 = Math.floor(Math.random() * (max - min + 1)) + min;
-		var token = num1 + " " + num2;
-		var pass = token.replace(/\D/g, '');
-		client.messages.create({
-					to: prefix + phoneNumber,
-					from: twilioPhoneNumber,
-					body: 'Your login code for Watch Your BAC is '+ token
-				}, function(err, responseData) {});
+	query.find({
+	  success: function(women) {
+	    // Do stuff
+	    response.success(women);
+	  },
+	  error: function(error) {
+    	// error is an instance of Parse.Error.
+		response.success(error);
+		}
+	});
+// 	query.first().then(function(result) {
+// 		var min = 100; var max = 999;
+// 		var num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+// 		var num2 = Math.floor(Math.random() * (max - min + 1)) + min;
+// 		var token = num1 + " " + num2;
+// 		var pass = token.replace(/\D/g, '');
+// 		client.messages.create({
+// 					to: prefix + phoneNumber,
+// 					from: twilioPhoneNumber,
+// 					body: 'Your login code for Watch Your BAC is '+ token
+// 				}, function(err, responseData) {});
 	
-	response.success(result);
-});
+	
+// });
 });
 
 
