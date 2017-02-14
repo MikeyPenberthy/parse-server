@@ -20,7 +20,7 @@ Parse.Cloud.define('hello', function(req, res) {
 Parse.Cloud.define("VerifyAccount", function(request, response) {
 	var phoneNumber = request.params.phone;
 	var countryCode = request.params.countryCode;
-	sendCodeSms(countryCode, phoneNumber, token);
+	// sendCodeSms(countryCode, phoneNumber, token);
 	phoneNumber = phoneNumber.replace(/\D/g, '');
 
 	Validate the phone number - US only
