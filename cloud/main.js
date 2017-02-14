@@ -6,7 +6,7 @@ var PFGroupMessage = Parse.Object.extend("GroupMessage");
 
 var twilioAccountSid = 'ACce5df5a4d391865e869d2dd8b4d7ecc9';
 var twilioAuthToken = '1762d7ce6bf37104950d3a53f19eda30';
-var twilioPhoneNumber = '+15005550006';
+var twilioPhoneNumber = '+8133580190';
 
 var twilio = require('twilio');
 twilio.initialize(twilioAccountSid, twilioAuthToken);
