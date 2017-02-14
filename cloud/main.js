@@ -16,6 +16,11 @@ Parse.Cloud.define('hello', function(req, res) {
 });
 
 Parse.Cloud.define("VerifyAccount", function(request, response) {
+	var phoneNumber = request.params.phone;
+	var countryCode = request.params.countryCode;
+	phoneNumber = phoneNumber.replace(/\D/g, '');
+	sendCodeSms(countryCode, phoneNumber, token);
+
 	response.success('Hi');
 });
 
