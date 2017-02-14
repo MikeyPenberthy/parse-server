@@ -4,9 +4,9 @@ var PFGroup = Parse.Object.extend("Group");
 var PFGroupMember = Parse.Object.extend("GroupMember");
 var PFGroupMessage = Parse.Object.extend("GroupMessage");
 
-var twilioAccountSid = 'ACce874884df7d6e62cb94f5fd19f74679';
-var twilioAuthToken = '067c86abc36d1c7569761e5175df4b9b';
-var twilioPhoneNumber = '+13237391950';
+var twilioAccountSid = 'ACce5df5a4d391865e869d2dd8b4d7ecc9';
+var twilioAuthToken = '1762d7ce6bf37104950d3a53f19eda30';
+var twilioPhoneNumber = '+15005550006';
 
 var twilio = require('twilio');
 twilio.initialize(twilioAccountSid, twilioAuthToken);
