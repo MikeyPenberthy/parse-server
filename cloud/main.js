@@ -34,7 +34,8 @@ Parse.Cloud.define('hello', function(req, res) {
 });
 
 Parse.Cloud.define("VerifyAccount", function(request, response) {
-	var user = new Parse.User();
+	var users = Parse.Object.extend('USER');
+	var user = new users();
 user.set("username", "my name");
 user.set("password", "my pass");
 user.set("email", "email@example.com");
