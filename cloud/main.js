@@ -26,12 +26,12 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 	phoneNumber = phoneNumber.replace(/\D/g, '');
 
 	client.messages.create({
-		to: phoneNumber,
+		to: prefix + phoneNumber,
 		from: twilioPhoneNumber,
 		body: 'Your login code for Watch Your BAC is '
 	}, function(err, responseData) {
 	});
-	response.success(phoneNumber);
+	response.success(prefix + phoneNumber);
 });
 
 
