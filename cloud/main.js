@@ -14,14 +14,13 @@ var twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
 
 
 Parse.Cloud.define('hello', function(req, res) {
-  res.success('Hi');// '+13237391950';
+  res.success('Hi');
 });
 
 Parse.Cloud.define("VerifyAccount", function(request, response) {
 	var phoneNumber = request.params.phone;
 	var countryCode = request.params.countryCode;
 	sendCodeSms(countryCode, phoneNumber, token);
-	response.success(phoneNumber);
 	phoneNumber = phoneNumber.replace(/\D/g, '');
 
 	Validate the phone number - US only
