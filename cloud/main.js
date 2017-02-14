@@ -7,14 +7,14 @@ var PFGroupMessage = Parse.Object.extend("GroupMessage");
 var twilioAccountSid = 'AC24c43039dabc881d2cfc481b7e4fe222';
 var twilioAuthToken = 'bfad414fd3ce8ea685d8867d7dbe2e16';
 var twilioPhoneNumber = '+13146268180';
-// '+13237391950';
+
 
 var twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
 
 
 
 Parse.Cloud.define('hello', function(req, res) {
-  res.success('Hi');
+  res.success('Hi');// '+13237391950';
 });
 
 Parse.Cloud.define("VerifyAccount", function(request, response) {
