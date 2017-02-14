@@ -8,9 +8,7 @@ var twilioAccountSid = 'AC24c43039dabc881d2cfc481b7e4fe222';
 var twilioAuthToken = 'bfad414fd3ce8ea685d8867d7dbe2e16';
 var twilioPhoneNumber = '+13146268180';
 
-
 var twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
-
 
 
 Parse.Cloud.define('hello', function(req, res) {
@@ -20,10 +18,9 @@ Parse.Cloud.define('hello', function(req, res) {
 Parse.Cloud.define("VerifyAccount", function(request, response) {
 	var phoneNumber = request.params.phone;
 	var countryCode = request.params.countryCode;
-	// sendCodeSms(countryCode, phoneNumber, token);
 	phoneNumber = phoneNumber.replace(/\D/g, '');
 
-	Validate the phone number - US only
+	// Validate the phone number - US only
 	if (!countryCode) {
 		return response.error("Missing country code");
 	}
@@ -47,7 +44,7 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 			result.save().then(function() {
 				return sendCodeSms(countryCode, phoneNumber, token);
 			}).then(function() {
-				response.success("verified");
+				response.success();
 			}, function(err) {
 				response.error(err);
 			});
@@ -61,7 +58,7 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 			user.save().then(function(a) {
 				return sendCodeSms(countryCode, phoneNumber, token);
 			}).then(function() {
-				response.success("verified");
+				response.success();
 			}, function(err) {
 				response.error(err);
 			});
@@ -114,9 +111,9 @@ Parse.Cloud.define("login", function(request, response) {
 function sendCodeSms(countryCode, phoneNumber, token) {
 	var prefix = "+" + countryCode;
 	var promise = new Parse.Promise();
-	twilio.messages.create({
-		to: prefix + phoneNumber
-		from: twilioPhoneNumber,
+	twilio.sendSms({
+		to: prefix + phoneNumber.replace(/\D/g, ''),
+		from: twilioPhoneNumber.replace(/\D/g, ''),
 		body: 'Your login code for Watch Your BAC is ' + token
 	}, function(err, responseData) {
 		if (err) {
