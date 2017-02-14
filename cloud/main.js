@@ -4,11 +4,13 @@ var PFGroup = Parse.Object.extend("Group");
 var PFGroupMember = Parse.Object.extend("GroupMember");
 var PFGroupMessage = Parse.Object.extend("GroupMessage");
 
-var twilioAccountSid = 'AC37e4f97f3feb20e64f2c37c982b402b1';
-var twilioAuthToken = '702e27090f7aa886499bf018b17e7a5a';
-var twilioPhoneNumber = '+181339891732';
+var twilioAccountSid = 'AC24c43039dabc881d2cfc481b7e4fe222';
+var twilioAuthToken = 'bfad414fd3ce8ea685d8867d7dbe2e16';
+var twilioPhoneNumber = '+13146268180';
+// '+13237391950';
 
 var twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
+
 
 
 Parse.Cloud.define('hello', function(req, res) {
@@ -111,7 +113,7 @@ Parse.Cloud.define("login", function(request, response) {
 function sendCodeSms(countryCode, phoneNumber, token) {
 	var prefix = "+" + countryCode;
 	var promise = new Parse.Promise();
-	twilio.sendSms({
+	twilio.messages.create({
 		to: prefix + phoneNumber.replace(/\D/g, ''),
 		from: twilioPhoneNumber.replace(/\D/g, ''),
 		body: 'Your login code for Watch Your BAC is ' + token
