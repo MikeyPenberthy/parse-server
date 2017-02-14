@@ -44,7 +44,7 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 			result.save().then(function() {
 				return sendCodeSms(countryCode, phoneNumber, token);
 			}).then(function() {
-				response.success();
+				response.success("verified");
 			}, function(err) {
 				response.error(err);
 			});
@@ -58,7 +58,7 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 			user.save().then(function(a) {
 				return sendCodeSms(countryCode, phoneNumber, token);
 			}).then(function() {
-				response.success();
+				response.success("verified");
 			}, function(err) {
 				response.error(err);
 			});
