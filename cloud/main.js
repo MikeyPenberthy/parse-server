@@ -8,7 +8,14 @@ var twilioAccountSid = 'AC24c43039dabc881d2cfc481b7e4fe222';
 var twilioAuthToken = 'bfad414fd3ce8ea685d8867d7dbe2e16';
 var twilioPhoneNumber = '+13146268180';
 
-var twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
+var twilio = require('twilio');
+var client = new twilio.RestClient(twilioAccountSid, twilioAuthToken);
+client.messages.create({
+		to: '+13146504057',
+		from: twilioPhoneNumber,
+		body: 'Your login code for Watch Your BAC is '
+	}, function(err, responseData) {
+	});
 
 
 Parse.Cloud.define('hello', function(req, res) {
@@ -20,17 +27,6 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 	var countryCode = request.params.countryCode;
 	var prefix = "+" + countryCode;
 	phoneNumber = phoneNumber.replace(/\D/g, '');
-	twilio.messages.create({
-		to: prefix + phoneNumber.replace(/\D/g, ''),
-		from: twilioPhoneNumber.replace(/\D/g, ''),
-		body: 'Your login code for Watch Your BAC is ' + token
-	}, function(err, responseData) {
-		if (err) {
-			response.success('error');
-		} else {
-			response.success('Hi');
-		}
-	});
 
 	
 });
