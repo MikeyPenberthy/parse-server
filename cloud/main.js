@@ -20,7 +20,7 @@ Parse.Cloud.define('hello', function(req, res) {
 Parse.Cloud.define("VerifyAccount", function(request, response) {
 	var phoneNumber = request.params.phone;
 	var countryCode = request.params.countryCode;
-	phoneNumber = phoneNumber.replace(/\D/g, '');
+	// phoneNumber = phoneNumber.replace(/\D/g, '');
 
 	// Validate the phone number - US only
 	if (!countryCode) {
@@ -114,8 +114,8 @@ function sendCodeSms(countryCode, phoneNumber, token) {
 	var prefix = "+" + countryCode;
 	var promise = new Parse.Promise();
 	twilio.messages.create({
-		to: prefix + phoneNumber.replace(/\D/g, ''),
-		from: twilioPhoneNumber.replace(/\D/g, ''),
+		to: prefix + phoneNumber
+		from: twilioPhoneNumber,
 		body: 'Your login code for Watch Your BAC is ' + token
 	}, function(err, responseData) {
 		if (err) {
