@@ -48,44 +48,44 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 	
 	
 	response.success(prefix + phoneNumber);
-	if (result) {
-			console.log("Verifying existing user");
-			result.setPassword(pass);
-			result.save().then(function() {
+	// if (result) {
+	// 		console.log("Verifying existing user");
+	// 		result.setPassword(pass);
+	// 		result.save().then(function() {
 				
-				client.messages.create({
-					to: prefix + phoneNumber,
-					from: twilioPhoneNumber,
-					body: 'Your login code for Watch Your BAC is '+ token
-				}, function(err, responseData) {});
+	// 			client.messages.create({
+	// 				to: prefix + phoneNumber,
+	// 				from: twilioPhoneNumber,
+	// 				body: 'Your login code for Watch Your BAC is '+ token
+	// 			}, function(err, responseData) {});
 
-			}).then(function() {
-				response.success();
-			}, function(err) {
-				response.error(err);
-			});
-		}
-		else {
-			var user = (request.user && !request.user.get("verified")) ? request.user
-				: new Parse.User();
+	// 		}).then(function() {
+	// 			response.success();
+	// 		}, function(err) {
+	// 			response.error(err);
+	// 		});
+	// 	}
+	// 	else {
+	// 		var user = (request.user && !request.user.get("verified")) ? request.user
+	// 			: new Parse.User();
 
-			user.setUsername(phoneNumber);
-			user.setPassword(pass);
-			user.save().then(function(a) {
-				client.messages.create({
-					to: prefix + phoneNumber,
-					from: twilioPhoneNumber,
-					body: 'Your login code for Watch Your BAC is '+ token
-				}, function(err, responseData) {});
-			}).then(function() {
-				response.success();
-			}, function(err) {
-				response.error(err);
-			});
-		}
-	}, function (err) {
-		response.error(err);
-	});
+	// 		user.setUsername(phoneNumber);
+	// 		user.setPassword(pass);
+	// 		user.save().then(function(a) {
+	// 			client.messages.create({
+	// 				to: prefix + phoneNumber,
+	// 				from: twilioPhoneNumber,
+	// 				body: 'Your login code for Watch Your BAC is '+ token
+	// 			}, function(err, responseData) {});
+	// 		}).then(function() {
+	// 			response.success();
+	// 		}, function(err) {
+	// 			response.error(err);
+	// 		});
+	// 	}
+	// }, function (err) {
+	// 	response.error(err);
+	// });
 });
 
 
