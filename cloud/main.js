@@ -113,9 +113,10 @@ Parse.Cloud.define("login", function(request, response) {
 function sendCodeSms(countryCode, phoneNumber, token) {
 	var prefix = "+" + countryCode;
 	var promise = new Parse.Promise();
+	// .replace(/\D/g, '')
 	twilio.sendSms({
-		to: prefix + phoneNumber.replace(/\D/g, ''),
-		from: twilioPhoneNumber.replace(/\D/g, ''),
+		to: "+1" + phoneNumber,
+		from: twilioPhoneNumber,
 		body: 'Your login code for Watch Your BAC is ' + token
 	}, function(err, responseData) {
 		if (err) {
