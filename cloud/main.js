@@ -27,7 +27,8 @@ Parse.Cloud.define("VerifyAccount", function(request, response) {
 		from: twilioPhoneNumber,
 		body: 'Your login code for Watch Your BAC is '+ token
 	}, function(err, responseData) {});
-	
+	response.success('success');
+
 });
 
 
