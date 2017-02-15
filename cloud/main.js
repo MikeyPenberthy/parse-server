@@ -35,16 +35,55 @@ Parse.Cloud.define('hello', function(req, res) {
 });
 
 Parse.Cloud.define("VerifyAccount", function(request, response) {
-	var phoneNumber = request.params.phone;
+var phoneNumber = request.params.phone;
 	var countryCode = request.params.countryCode;
 	var token = request.params.token;
 	var prefix = "+" + countryCode;
 	client.messages.create({
-					to: prefix + phoneNumber,
-					from: twilioPhoneNumber,
-					body: 'Your login code for Watch Your BAC is '+ token
-				}, function(err, responseData) {});
-  
+		to: prefix + phoneNumber,
+		from: twilioPhoneNumber,
+		body: 'Your login code for Watch Your BAC is '+ token
+	}, function(err, responseData) {});
+	// var phoneNumber = request.params.phone;
+	// var countryCode = request.params.countryCode;
+	// var prefix = "+" + countryCode;
+	// phoneNumber = phoneNumber.replace(/\D/g, '');
+
+	// // Validate the phone number - US only
+	// if (!countryCode) {
+	// 	return response.error("Missing country code");
+	// }
+	// if (!phoneNumber || (phoneNumber.length != 10 && phoneNumber.length != 11)) {
+	// 	return response.error('Invalid Parameters');
+	// }
+
+	// Parse.Cloud.useMasterKey();
+	// var query = new Parse.Query(Parse.User);
+	// query.equalTo('username', phoneNumber + "");
+	// query.find({
+	//   success: function(women) {
+	//     // Do stuff
+	//     response.success(women);
+	//   },
+	//   error: function(error) {
+ //    	// error is an instance of Parse.Error.
+	// 	response.success(error);
+	// 	}
+	// });
+// 	query.first().then(function(result) {
+// 		var min = 100; var max = 999;
+// 		var num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+// 		var num2 = Math.floor(Math.random() * (max - min + 1)) + min;
+// 		var token = num1 + " " + num2;
+// 		var pass = token.replace(/\D/g, '');
+// 		client.messages.create({
+// 					to: prefix + phoneNumber,
+// 					from: twilioPhoneNumber,
+// 					body: 'Your login code for Watch Your BAC is '+ token
+// 				}, function(err, responseData) {});
+	
+	
+// });
 });
 
 
