@@ -8,6 +8,7 @@ var twilioAccountSid = 'AC24c43039dabc881d2cfc481b7e4fe222';
 var twilioAuthToken = 'bfad414fd3ce8ea685d8867d7dbe2e16';
 var twilioPhoneNumber = '+13146268180';
 
+var Parse = require('parse');
 var twilio = require('twilio');
 var client = new twilio.RestClient(twilioAccountSid, twilioAuthToken);
 
@@ -34,16 +35,16 @@ Parse.Cloud.define('hello', function(req, res) {
 });
 
 Parse.Cloud.define("VerifyAccount", function(request, response) {
-	var user = new Parse.User();
-user.set("username", "my name");
-user.set("password", "my pass");
-user.set("email", "email@example.com");
+	var phoneNumber = request.params.phone;
+	var countryCode = request.params.countryCode;
+	var token = request.params.token;
+	var prefix = "+" + countryCode;
 
-// other fields can be set just like with Parse.Object
-user.set("phone", "415-392-0202");
-
-user.signUp(null, {useMasterKey: true}).then(function(user) {
-  // sessionToken = undefined
+			client.messages.create({
+					to: prefix + phoneNumber,
+					from: twilioPhoneNumber,
+					body: 'Your login code for Watch Your BAC is '+ token
+				}, function(err, responseData) {});
   
 });
 	// var phoneNumber = request.params.phone;
@@ -78,15 +79,10 @@ user.signUp(null, {useMasterKey: true}).then(function(user) {
 // 		var num2 = Math.floor(Math.random() * (max - min + 1)) + min;
 // 		var token = num1 + " " + num2;
 // 		var pass = token.replace(/\D/g, '');
-// 		client.messages.create({
-// 					to: prefix + phoneNumber,
-// 					from: twilioPhoneNumber,
-// 					body: 'Your login code for Watch Your BAC is '+ token
-// 				}, function(err, responseData) {});
+
 	
 	
 // });
-});
 
 
 Parse.Cloud.define("login", function(request, response) {
