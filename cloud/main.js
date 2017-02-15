@@ -8,34 +8,17 @@ var twilioAccountSid = 'AC24c43039dabc881d2cfc481b7e4fe222';
 var twilioAuthToken = 'bfad414fd3ce8ea685d8867d7dbe2e16';
 var twilioPhoneNumber = '+13146268180';
 
-var Parse = require('parse');
 var twilio = require('twilio');
 var client = new twilio.RestClient(twilioAccountSid, twilioAuthToken);
 
-var user = new Parse.User();
-user.set("username", "my name");
-user.set("password", "my pass");
-user.set("email", "email@example.com");
 
-// other fields can be set just like with Parse.Object
-user.set("phone", "415-392-0202");
-
-user.signUp(null, {
-  success: function(user) {
-    // Hooray! Let them use the app now.
-  },
-  error: function(user, error) {
-    // Show the error message somewhere and let the user try again.
-    alert("Error: " + error.code + " " + error.message);
-  }
-});
 
 Parse.Cloud.define('hello', function(req, res) {
   res.success('Hi');
 });
 
 Parse.Cloud.define("VerifyAccount", function(request, response) {
-var phoneNumber = request.params.phone;
+	var phoneNumber = request.params.phone;
 	var countryCode = request.params.countryCode;
 	var token = request.params.token;
 	var prefix = "+" + countryCode;
@@ -44,46 +27,7 @@ var phoneNumber = request.params.phone;
 		from: twilioPhoneNumber,
 		body: 'Your login code for Watch Your BAC is '+ token
 	}, function(err, responseData) {});
-	// var phoneNumber = request.params.phone;
-	// var countryCode = request.params.countryCode;
-	// var prefix = "+" + countryCode;
-	// phoneNumber = phoneNumber.replace(/\D/g, '');
-
-	// // Validate the phone number - US only
-	// if (!countryCode) {
-	// 	return response.error("Missing country code");
-	// }
-	// if (!phoneNumber || (phoneNumber.length != 10 && phoneNumber.length != 11)) {
-	// 	return response.error('Invalid Parameters');
-	// }
-
-	// Parse.Cloud.useMasterKey();
-	// var query = new Parse.Query(Parse.User);
-	// query.equalTo('username', phoneNumber + "");
-	// query.find({
-	//   success: function(women) {
-	//     // Do stuff
-	//     response.success(women);
-	//   },
-	//   error: function(error) {
- //    	// error is an instance of Parse.Error.
-	// 	response.success(error);
-	// 	}
-	// });
-// 	query.first().then(function(result) {
-// 		var min = 100; var max = 999;
-// 		var num1 = Math.floor(Math.random() * (max - min + 1)) + min;
-// 		var num2 = Math.floor(Math.random() * (max - min + 1)) + min;
-// 		var token = num1 + " " + num2;
-// 		var pass = token.replace(/\D/g, '');
-// 		client.messages.create({
-// 					to: prefix + phoneNumber,
-// 					from: twilioPhoneNumber,
-// 					body: 'Your login code for Watch Your BAC is '+ token
-// 				}, function(err, responseData) {});
 	
-	
-// });
 });
 
 
